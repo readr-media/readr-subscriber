@@ -1,7 +1,7 @@
 import base64
 import ast
 from flask import Flask, request, Response
-from feedback import create_feedback
+from feedback import feedback_handler
 
 app = Flask(__name__)
 
@@ -18,7 +18,7 @@ def insert_feedback():
     content = base64.b64decode(req["message"]["data"]).decode("utf-8")
     content = ast.literal_eval(content)
     print(content)
-    if create_feedback(content):
+    if feedback_handler(content):
         return "success"
     else:
         return Response("{'error': 'insert data error'}", status=500, mimetype='application/json')
