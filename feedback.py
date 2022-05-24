@@ -99,10 +99,10 @@ def feedback_handler(data):
   ip = data['ip']
   responseTime = data['responseTime']
 
-  ip_regex = re.compile(r'[0-9]+[.][0-9]+[.][0-9]+[.][0-9]+')
-  if not re.fullmatch(ip_regex, ip) :
-    print("ip format not match.")
-    return False
+  # ip_regex = re.compile(r'[0-9]+[.][0-9]+[.][0-9]+[.][0-9]+')
+  # if not re.fullmatch(ip_regex, ip) :
+  #   print("ip format not match.")
+  #   return False
   responseTime_regex = re.compile(r'20[0-9][0-9]-(0?[1-9]|1[0-2])-(0?[1-9]|[12]\d|30|31)T([01][0-9]|2[0-3]):([0-5][0-9]|60):([0-5][0-9]|60).([0-9][0-9][0-9])Z')
   if not re.fullmatch(responseTime_regex, responseTime) :
     print("responseTime format not match.")
