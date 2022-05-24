@@ -108,19 +108,16 @@ def feedback_handler(data):
     print("responseTime format not match.")
     return False
 
-  if (form == like_form_id and field == like_field_id) or (form == comment_form_id and field == comment_field_id):
-    if field == comment_field_id:
-      return create_formResult(gql_client, name, ip, result, responseTime, form, field)
-    elif field == like_field_id:
-      if delete_name_exist_result(gql_client, name) is False:
-        return False
-      if result == 'true' or result == 'false':
-        return create_formResult(gql_client, name, ip, result, responseTime, form, field) 
-      else: 
-        return True
-    else:
-      print("field not match.")
+  
+  if field == comment_field_id and form == comment_form_id :
+    return create_formResult(gql_client, name, ip, result, responseTime, form, field)
+  elif field == like_field_id and form == like_form_id :
+    if delete_name_exist_result(gql_client, name) is False:
       return False
+    if result == 'true' or result == 'false':
+      return create_formResult(gql_client, name, ip, result, responseTime, form, field) 
+    else: 
+      return True
   else:
     print("form and field not match.")
     return False
