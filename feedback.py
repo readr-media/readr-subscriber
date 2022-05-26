@@ -6,15 +6,28 @@ from gql.transport.aiohttp import AIOHTTPTransport
 
 
 gql_endpoint = os.environ['GQL_ENDPOINT']
-like_form_id = os.environ['LIKE_FORM_ID']
-comment_form_id = os.environ['COMMENT_FORM_ID']
-like_field_id = os.environ['LIKE_FIELD_ID']
-comment_field_id = os.environ['COMMENT_FIELD_ID']
-
 
 
 gql_transport = AIOHTTPTransport(url=gql_endpoint)
 gql_client = Client(transport=gql_transport, fetch_schema_from_transport=True)
+def query_filedtype(gql_client, filedId):
+  query = '''
+  query{
+  field(where:{id:%s}){
+    type
+    }
+  }
+    '''%filedId
+  query_result = gql_client.execute(gql(query))
+  if isinstance(query_result, dict) and 'field' in query_result:
+    if query_result['field']:
+      type = query_result['field']['type']
+      return type
+    else:
+      print(f"filedId {filedId} not found")
+      return False
+  else:
+    return False
 
 def create_formResult(gql_client, name, ip, result, responseTime, form, field):
   mutation_data = '''
@@ -53,13 +66,13 @@ def create_formResult(gql_client, name, ip, result, responseTime, form, field):
   else: 
     print(mutation_result)
     return False
-def delete_name_exist_result(gql_client, name):
+def delete_name_exist_result(gql_client, name, fieldId):
   query = '''query{
     formResults(where:{name:{in:"%s"} ,field:{id:{in:%s}}} orderBy:{name:desc}){
       id
     }
   }
-''' %(name, like_field_id)
+''' %(name, fieldId)
   print(query)
   query_result = gql_client.execute(gql(query))
   if isinstance(query_result, dict) and 'formResults' in query_result:
@@ -108,18 +121,20 @@ def feedback_handler(data):
     print("responseTime format not match.")
     return False
 
-  
-  if field == comment_field_id and form == comment_form_id :
-    return create_formResult(gql_client, name, ip, result, responseTime, form, field)
-  elif field == like_field_id and form == like_form_id :
-    if delete_name_exist_result(gql_client, name) is False:
+  field_type = query_filedtype(gql_client, field)
+  if field_type:
+    if field_type=='text':
+      return create_formResult(gql_client, name, ip, result, responseTime, form, field)
+    elif field_type=='single':
+      if delete_name_exist_result(gql_client, name, field) is False:
+        return False
+      if result == 'true' or result == 'false':
+        return create_formResult(gql_client, name, ip, result, responseTime, form, field) 
+      else: 
+        return True
+    else:
       return False
-    if result == 'true' or result == 'false':
-      return create_formResult(gql_client, name, ip, result, responseTime, form, field) 
-    else: 
-      return True
   else:
-    print("form and field not match.")
     return False
 
 
