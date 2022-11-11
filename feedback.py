@@ -29,9 +29,10 @@ def query_filedtype(gql_client, filedId):
   else:
     return False
 
-def create_formResult(gql_client, name, ip, result, responseTime, form, field):
+def create_formResult(gql_client, name, ip, result, responseTime, form, field, uri=''):
   mutation_data = '''
         data: {
+          %s
           name: "%s",
           ip: "%s",
           result: "%s",
@@ -48,7 +49,7 @@ def create_formResult(gql_client, name, ip, result, responseTime, form, field):
 
           }
         }
-      ''' %(name, ip, result, responseTime, form, field)
+      ''' %(uri, name, ip, result, responseTime, form, field)
   createFormResult = '''
     mutation{
       createFormResult(%s){
@@ -66,13 +67,13 @@ def create_formResult(gql_client, name, ip, result, responseTime, form, field):
   else: 
     print(mutation_result)
     return False
-def delete_name_exist_result(gql_client, name, fieldId):
+def delete_name_uri_exist_result(gql_client, name, fieldId, uri):
   query = '''query{
-    formResults(where:{name:{in:"%s"} ,field:{id:{in:%s}}} orderBy:{name:desc}){
+    formResults(where:{name:{in:"%s"} ,field:{id:{in:%s}}, uri:{equals:"%s"}} orderBy:{name:desc}){
       id
     }
   }
-''' %(name, fieldId)
+''' %(name, fieldId, uri)
   print(query)
   query_result = gql_client.execute(gql(query))
   if isinstance(query_result, dict) and 'formResults' in query_result:
@@ -111,7 +112,12 @@ def feedback_handler(data):
   result = data['userFeedback'].lower()
   ip = data['ip']
   responseTime = data['responseTime']
-
+  if 'uri' in data:
+    uri = data['uri']
+    uri_script = f'uri: "{uri}",'
+  else:
+    uri = ''
+    uri_script = ''
   # ip_regex = re.compile(r'[0-9]+[.][0-9]+[.][0-9]+[.][0-9]+')
   # if not re.fullmatch(ip_regex, ip) :
   #   print("ip format not match.")
@@ -126,10 +132,10 @@ def feedback_handler(data):
     if field_type=='text':
       return create_formResult(gql_client, name, ip, result, responseTime, form, field)
     elif field_type=='single':
-      if delete_name_exist_result(gql_client, name, field) is False:
+      if delete_name_uri_exist_result(gql_client, name, field, uri) is False:
         return False
       if result == 'true' or result == 'false':
-        return create_formResult(gql_client, name, ip, result, responseTime, form, field) 
+        return create_formResult(gql_client, name, ip, result, responseTime, form, field, uri_script) 
       else: 
         return True
     else:
@@ -142,10 +148,11 @@ if __name__ == '__main__':
 
   data_comment = {
   "name": "uuid",
-  "form": "3",
+  "form": "2",
   "ip": "2.1.1.22",
-  "responseTime": '2022-05-19T05:00:00.000Z',
-  "field": "7", 
-  "userFeedback": "使用者的實際經驗感想",
+  "responseTime": '2022-11-11T05:00:00.000Z',
+  "field": "6", 
+  "userFeedback": "true",
+  "uri": "https://www.google.com"
   }
   print(feedback_handler(data_comment))
