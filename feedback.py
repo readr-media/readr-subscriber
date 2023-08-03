@@ -6,10 +6,10 @@ from gql.transport.aiohttp import AIOHTTPTransport
 
 
 gql_endpoint = os.environ['GQL_ENDPOINT']
-
-
 gql_transport = AIOHTTPTransport(url=gql_endpoint)
 gql_client = Client(transport=gql_transport, fetch_schema_from_transport=True)
+
+
 def query_filedtype(gql_client, filedId):
   query = '''
   query{
@@ -28,6 +28,7 @@ def query_filedtype(gql_client, filedId):
       return False
   else:
     return False
+
 
 def create_formResult(gql_client, name, ip, result, responseTime, form, field, uri=''):
   mutation_data = '''
@@ -67,6 +68,8 @@ def create_formResult(gql_client, name, ip, result, responseTime, form, field, u
   else: 
     print(mutation_result)
     return False
+
+
 def delete_name_uri_exist_result(gql_client, name, fieldId, uri):
   query = '''query{
     formResults(where:{name:{in:"%s"} ,field:{id:{in:%s}}, uri:{equals:"%s"}} orderBy:{name:desc}){
@@ -98,50 +101,89 @@ def delete_name_uri_exist_result(gql_client, name, fieldId, uri):
         print(mutation_result)
         print("deleteFormResult fail")
         return False
-
-
     else:
       #user feed-like result not in formResults
       return True
+
+
+def query_form_result(gql_client, name, field_id, uri):
+    # Query "formResults" instead of single "formResult" is because the current "formResult" query schema
+    # only allow "id" as the query variable.
+    # Might need to refactor it someday.
+    query = '''query{
+        formResults(where:{name:{in:"%s"}, field:{id:{in:%s}}, uri:{equals:"%s"}} orderBy:{name:desc}){
+            id
+        }
+    }''' % (name, field_id, uri)
+    result = gql_client.execute(gql(query))
+    return result['formResults']
+
+
+def update_form_result(gql_client, form_result_id, result, response_time):
+    mutation = '''
+        mutation UpdateFormResult($where: FormResultWhereUniqueInput!, $data: FormResultUpdateInput!) {
+            updateFormResult(where: $where, data: $data) {
+                id
+            }
+        }
+    '''
+    variables = {
+        "where": {"id": f"{form_result_id}"},
+        "data": {
+            "result": f"{result}",
+            "responseTime": f"{response_time}"
+        }
+    }
+    result = gql_client.execute(gql(mutation), variable_values=variables)
+    if result['updateFormResult'].get('id', '') != form_result_id:
+       return False
+    return True
       
 
 def feedback_handler(data):
-  name = data['name']
-  form = data['form']
-  field = data['field']
-  result = data['userFeedback'].lower()
-  ip = data['ip']
-  responseTime = data['responseTime']
-  if 'uri' in data:
-    uri = data['uri']
-    uri_script = f'uri: "{uri}",'
-  else:
-    uri = ''
-    uri_script = ''
-  # ip_regex = re.compile(r'[0-9]+[.][0-9]+[.][0-9]+[.][0-9]+')
-  # if not re.fullmatch(ip_regex, ip) :
-  #   print("ip format not match.")
-  #   return False
-  responseTime_regex = re.compile(r'20[0-9][0-9]-(0?[1-9]|1[0-2])-(0?[1-9]|[12]\d|30|31)T([01][0-9]|2[0-3]):([0-5][0-9]|60):([0-5][0-9]|60).([0-9][0-9][0-9])Z')
-  if not re.fullmatch(responseTime_regex, responseTime) :
-    print("responseTime format not match.")
-    return False
-
-  field_type = query_filedtype(gql_client, field)
-  if field_type:
-    if field_type=='text':
-      return create_formResult(gql_client, name, ip, result, responseTime, form, field)
-    elif field_type=='single':
-      if delete_name_uri_exist_result(gql_client, name, field, uri) is False:
-        return False
-      if result == 'true' or result == 'false':
-        return create_formResult(gql_client, name, ip, result, responseTime, form, field, uri_script) 
-      else: 
-        return True
+    name = data['name']
+    form = data['form']
+    field = data['field']
+    result = data['userFeedback'].lower()
+    ip = data['ip']
+    responseTime = data['responseTime']
+    if 'uri' in data:
+        uri = data['uri']
+        uri_script = f'uri: "{uri}",'
     else:
-      return False
-  else:
-    return False
+        uri = ''
+        uri_script = ''
+    # ip_regex = re.compile(r'[0-9]+[.][0-9]+[.][0-9]+[.][0-9]+')
+    # if not re.fullmatch(ip_regex, ip) :
+    #   print("ip format not match.")
+    #   return False
+    responseTime_regex = re.compile(r'20[0-9][0-9]-(0?[1-9]|1[0-2])-(0?[1-9]|[12]\d|30|31)T([01][0-9]|2[0-3]):([0-5][0-9]|60):([0-5][0-9]|60).([0-9][0-9][0-9])Z')
+    if not re.fullmatch(responseTime_regex, responseTime) :
+        print("responseTime format not match.")
+        return False
+
+    field_type = query_filedtype(gql_client, field)
+    if field_type == 'text':
+        return create_formResult(gql_client, name, ip, result, responseTime, form, field)
+    elif field_type == 'single':
+        if delete_name_uri_exist_result(gql_client, name, field, uri) is False:
+            return False
+        if result == 'true' or result == 'false':
+            return create_formResult(gql_client, name, ip, result, responseTime, form, field, uri_script) 
+        else: 
+            return True
+    elif field_type == 'multiple':
+        form_results = query_form_result(gql_client, name, field, uri)
+        if len(form_results) == 0:
+            return create_formResult(gql_client, name, ip, result, responseTime, form, field, uri_script)
+        else:
+            form_result_id = form_results[0]['id']
+            return update_form_result(gql_client, form_result_id, result, responseTime)
+    elif field_type == 'checkbox':
+        # TODO: Might implement it in the future.
+        return False
+    else:
+        return False
 
 
 if __name__ == '__main__':
