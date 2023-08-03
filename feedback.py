@@ -110,12 +110,22 @@ def query_form_result(gql_client, name, field_id, uri):
     # Query "formResults" instead of single "formResult" is because the current "formResult" query schema
     # only allow "id" as the query variable.
     # Might need to refactor it someday.
-    query = '''query{
-        formResults(where:{name:{in:"%s"}, field:{id:{in:%s}}, uri:{equals:"%s"}} orderBy:{name:desc}){
-            id
+    query = '''
+        query FormResults($where: FormResultWhereInput!) {
+            formResults(where: $where) {
+                id
+                result
+            }
         }
-    }''' % (name, field_id, uri)
-    result = gql_client.execute(gql(query))
+    '''
+    variables = {
+        "where": {
+            "name": {"equals": f"{name}"},
+            "field": {"id": {"equals": f"{field_id}"}},
+            "uri": {"equals": f"{uri}"},
+        }
+    }
+    result = gql_client.execute(gql(query), variable_values=variables)
     return result['formResults']
 
 
@@ -136,6 +146,18 @@ def update_form_result(gql_client, form_result_id, result, response_time):
     }
     result = gql_client.execute(gql(mutation), variable_values=variables)
     if result['updateFormResult'].get('id', '') != form_result_id:
+       return False
+    return True
+
+
+def delete_form_result(gql_client, form_result_id):
+    mutation = '''mutation{
+        deleteFormResult(where:{id:%s}){
+            id
+        }
+    }'''% form_result_id
+    result = gql_client.execute(gql(mutation))
+    if result['deleteFormResult'].get('id', '') != form_result_id:
        return False
     return True
       
@@ -174,10 +196,16 @@ def feedback_handler(data):
             return True
     elif field_type == 'multiple':
         form_results = query_form_result(gql_client, name, field, uri)
-        if len(form_results) == 0:
+        if len(form_results) > 1:
+           print(f"Expect only one form result, got {form_results}")
+           return False
+        elif len(form_results) == 0:
             return create_formResult(gql_client, name, ip, result, responseTime, form, field, uri_script)
         else:
             form_result_id = form_results[0]['id']
+            current_result = form_results[0]['result']
+            if current_result == result:
+                return delete_form_result(gql_client, form_result_id)
             return update_form_result(gql_client, form_result_id, result, responseTime)
     elif field_type == 'checkbox':
         # TODO: Might implement it in the future.
@@ -188,11 +216,15 @@ def feedback_handler(data):
 
 if __name__ == '__main__':
 
+  from datetime import datetime
+  today = datetime.now()
+  iso_date = today.isoformat()[:-3]
   data_comment = {
   "name": "uuid",
   "form": "2",
   "ip": "2.1.1.22",
-  "responseTime": '2022-11-11T05:00:00.000Z',
+  # "responseTime": '2022-11-11T05:00:00.000Z',
+  "responseTime": iso_date+'Z',
   "field": "6", 
   "userFeedback": "true",
   "uri": "https://www.google.com"
