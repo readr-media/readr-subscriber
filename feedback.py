@@ -30,7 +30,7 @@ def query_filedtype(gql_client, filedId):
     return False
 
 
-def create_formResult(gql_client, name, ip, result, responseTime, form, field, uri=''):
+def create_formResult(gql_client, name, ip, result, responseTime, form, field, uri):
   mutation_data = '''
         data: {
           %s
@@ -186,7 +186,7 @@ def feedback_handler(data):
 
     field_type = query_filedtype(gql_client, field)
     if field_type == 'text':
-        return create_formResult(gql_client, name, ip, result, responseTime, form, field)
+        return create_formResult(gql_client, name, ip, result, responseTime, form, field, uri_script)
     elif field_type == 'single':
         if delete_name_uri_exist_result(gql_client, name, field, uri) is False:
             return False
