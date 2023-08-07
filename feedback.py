@@ -30,6 +30,28 @@ def query_filedtype(gql_client, filedId):
     return False
 
 
+def valid_results_value(results: list, field_id: str) -> bool:
+    '''
+        Query filed options to check if the results are valid.
+    '''
+    query = '''
+        query FieldOptions($where: FieldOptionWhereInput!) {
+            fieldOptions(where: $where) {
+                id
+            }
+        }
+    '''
+    variables = {
+        "where": {
+            "field": {"id": {"equals": f"{field_id}"}},
+            "value": {"in": [f"{result}" for result in results]}
+        }
+    }
+
+    result = gql_client.execute(gql(query), variable_values=variables)
+    return len(result['fieldOptions']) == len(results)
+
+
 def create_formResult(gql_client, name, ip, result, responseTime, form, field, uri):
   mutation_data = '''
         data: {
@@ -114,7 +136,6 @@ def query_form_result(gql_client, name, field_id, uri):
         query FormResults($where: FormResultWhereInput!) {
             formResults(where: $where) {
                 id
-                result
             }
         }
     '''
@@ -187,25 +208,25 @@ def feedback_handler(data):
     field_type = query_filedtype(gql_client, field)
     if field_type == 'text':
         return create_formResult(gql_client, name, ip, result, responseTime, form, field, uri_script)
-    elif field_type == 'single':
-        if delete_name_uri_exist_result(gql_client, name, field, uri) is False:
-            return False
-        if result == 'true' or result == 'false':
-            return create_formResult(gql_client, name, ip, result, responseTime, form, field, uri_script) 
-        else: 
-            return True
-    elif field_type == 'multiple':
+    elif field_type in {'single', 'multiple'}:
         form_results = query_form_result(gql_client, name, field, uri)
         if len(form_results) > 1:
-           print(f"Expect only one form result, got {form_results}")
-           return False
-        elif len(form_results) == 0:
+            print(f"Expect only one form result, got {form_results}")
+            return False
+        
+        results = result.split("$$")
+        if len(form_results) == 0:
+            if not valid_results_value(results, field):   
+                print(f"Invalid userFeedback '{result}' on field id '{field}'")
+                return False
             return create_formResult(gql_client, name, ip, result, responseTime, form, field, uri_script)
         else:
             form_result_id = form_results[0]['id']
-            current_result = form_results[0]['result']
-            if current_result == result:
-                return delete_form_result(gql_client, form_result_id)
+            if result == "":
+               return delete_form_result(gql_client, form_result_id)
+            if not valid_results_value(results, field):
+                print(f"Invalid userFeedback '{result}' on field id '{field}'")
+                return False
             return update_form_result(gql_client, form_result_id, result, responseTime)
     elif field_type == 'checkbox':
         # TODO: Might implement it in the future.
