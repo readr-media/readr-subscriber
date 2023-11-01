@@ -134,7 +134,7 @@ def query_form_result(gql_client, name, field_id, uri):
     # Might need to refactor it someday.
     query = '''
         query FormResults($where: FormResultWhereInput!) {
-            formResults(where: $where) {
+            formResults(where: $where, orderBy:{createdAt:desc}) {
                 id
             }
         }
@@ -210,9 +210,6 @@ def feedback_handler(data):
         return create_formResult(gql_client, name, ip, result, responseTime, form, field, uri_script)
     elif field_type in {'single', 'multiple'}:
         form_results = query_form_result(gql_client, name, field, uri)
-        if len(form_results) > 1:
-            print(f"Expect only one form result, got {form_results}")
-            return False
         
         results = result.split("$$")
         if len(form_results) == 0:
@@ -221,6 +218,9 @@ def feedback_handler(data):
                 return False
             return create_formResult(gql_client, name, ip, result, responseTime, form, field, uri_script)
         else:
+            if len(form_results) > 1:
+              print(f"There are more than one form result, got {form_results}")
+
             form_result_id = form_results[0]['id']
             if result == "":
                return delete_form_result(gql_client, form_result_id)
