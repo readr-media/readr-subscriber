@@ -171,15 +171,28 @@ def update_form_result(gql_client, form_result_id, result, response_time):
     return True
 
 
-def delete_form_result(gql_client, form_result_id):
+def delete_single_form_result(gql_client, form_result_id):
     mutation = '''mutation{
         deleteFormResult(where:{id:%s}){
             id
         }
     }'''% form_result_id
     result = gql_client.execute(gql(mutation))
-    if result['deleteFormResult'].get('id', '') != form_result_id:
-       return False
+    return True
+
+def delete_multiple_form_result(gql_client, form_result_id_list):
+    mutation = '''
+        mutation($where: [FormResultWhereUniqueInput!]!){
+            deleteFormResults(where: $where){
+                id
+            }
+       }
+    '''
+
+    variables = {
+       "where": list(map(lambda form_result_id: { id: form_result_id} ), form_result_id_list)
+    }
+    result = gql_client.execute(gql(mutation), variable_values=variables)
     return True
       
 
@@ -221,12 +234,14 @@ def feedback_handler(data):
             if len(form_results) > 1:
               print(f"There are more than one form result, got {form_results}")
 
-            form_result_id = form_results[0]['id']
             if result == "":
-               return delete_form_result(gql_client, form_result_id)
+               form_result_id_list = list(map(lambda result: result['id'], form_results))
+               return delete_multiple_form_result(gql_client, form_result_id_list)
             if not valid_results_value(results, field):
                 print(f"Invalid userFeedback '{result}' on field id '{field}'")
                 return False
+            
+            form_result_id = form_results[0]['id']
             return update_form_result(gql_client, form_result_id, result, responseTime)
     elif field_type == 'checkbox':
         # TODO: Might implement it in the future.
