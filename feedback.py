@@ -134,7 +134,7 @@ def query_form_result(gql_client, name, field_id, uri):
     # Might need to refactor it someday.
     query = '''
         query FormResults($where: FormResultWhereInput!) {
-            formResults(where: $where) {
+            formResults(where: $where, orderBy:{createdAt:desc}) {
                 id
             }
         }
@@ -171,7 +171,7 @@ def update_form_result(gql_client, form_result_id, result, response_time):
     return True
 
 
-def delete_form_result(gql_client, form_result_id):
+def delete_single_form_result(gql_client, form_result_id):
     mutation = '''mutation{
         deleteFormResult(where:{id:%s}){
             id
@@ -179,7 +179,24 @@ def delete_form_result(gql_client, form_result_id):
     }'''% form_result_id
     result = gql_client.execute(gql(mutation))
     if result['deleteFormResult'].get('id', '') != form_result_id:
-       return False
+        return False
+    return True
+
+def delete_multiple_form_result(gql_client, form_result_id_list):
+    mutation = '''
+        mutation($where: [FormResultWhereUniqueInput!]!){
+            deleteFormResults(where: $where){
+                id
+            }
+       }
+    '''
+
+    where_list = list(map(lambda form_result_id: { "id": f"{form_result_id}"}, form_result_id_list))
+    print(where_list)
+    variables = {
+       "where": where_list
+    }
+    result = gql_client.execute(gql(mutation), variable_values=variables)
     return True
       
 
@@ -210,9 +227,6 @@ def feedback_handler(data):
         return create_formResult(gql_client, name, ip, result, responseTime, form, field, uri_script)
     elif field_type in {'single', 'multiple'}:
         form_results = query_form_result(gql_client, name, field, uri)
-        if len(form_results) > 1:
-            print(f"Expect only one form result, got {form_results}")
-            return False
         
         results = result.split("$$")
         if len(form_results) == 0:
@@ -221,12 +235,17 @@ def feedback_handler(data):
                 return False
             return create_formResult(gql_client, name, ip, result, responseTime, form, field, uri_script)
         else:
-            form_result_id = form_results[0]['id']
+            if len(form_results) > 1:
+              print(f"There are more than one form result, got {form_results}")
+
             if result == "":
-               return delete_form_result(gql_client, form_result_id)
+               form_result_id_list = list(map(lambda result: result['id'], form_results))
+               return delete_multiple_form_result(gql_client, form_result_id_list)
             if not valid_results_value(results, field):
                 print(f"Invalid userFeedback '{result}' on field id '{field}'")
                 return False
+            
+            form_result_id = form_results[0]['id']
             return update_form_result(gql_client, form_result_id, result, responseTime)
     elif field_type == 'checkbox':
         # TODO: Might implement it in the future.
