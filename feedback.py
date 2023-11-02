@@ -192,7 +192,7 @@ def delete_multiple_form_result(gql_client, form_result_id_list):
     '''
 
     variables = {
-       "where": list(map(lambda form_result_id: { id: form_result_id} ), form_result_id_list)
+       "where": list(map(lambda form_result_id: { id: form_result_id}, form_result_id_list))
     }
     result = gql_client.execute(gql(mutation), variable_values=variables)
     return True
