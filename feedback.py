@@ -178,6 +178,8 @@ def delete_single_form_result(gql_client, form_result_id):
         }
     }'''% form_result_id
     result = gql_client.execute(gql(mutation))
+    if result['deleteFormResult'].get('id', '') != form_result_id:
+        return False
     return True
 
 def delete_multiple_form_result(gql_client, form_result_id_list):
